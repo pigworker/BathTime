@@ -57,7 +57,7 @@ that large eliminators will have motives over `Type`, and that their
 types will be well `Kind`ed. `Kind` is a topsort, never used as a term.
 
 > data Sort
->   = Set Integer       -- predcicative levels
+>   = Set Integer       -- predicative levels
 >   | Type              -- one superuniverse
 >   | Kind              -- the topsort
 >   deriving (Eq, Ord)
@@ -75,7 +75,8 @@ type constructors.
 Worlds
 ------
 
-The `World` in a function type says "where" the argument will come from.
+The `World` in a function type says "where" the argument will come from,
+or is that when?
 
 > data World = Dyn | Sta deriving Eq            -- two worlds to start
 
