@@ -1,11 +1,13 @@
 Tm
 ==
 
-There's always a file called Tm, defining the syntax of core terms.
+> {-# LANGUAGE TypeSynonymInstances #-}
 
-> {-# LANGUAGE DeriveFunctor, FlexibleInstances, TypeSynonymInstances #-}
+(So far, -XKitchenSink is to be resisted.)
 
 > module Tm where
+
+There's always a file called Tm, defining the syntax of core terms.
 
 > import Data.Monoid
 
@@ -16,25 +18,25 @@ There's always a file called Tm, defining the syntax of core terms.
 >   | Tm :& Tm          -- pairing
 >   | Z                 -- zero
 >   | C Tm              -- constructor layer
->   | N (Ne Tm)         -- neutral
+>   | N Ne              -- neutral
 >   deriving Eq
 > infixr  2  :.
 > infixr  4  :&
 > infix   9  :@
 
-> data Ne t
+> data Ne
 >   = V Int             -- de Bruijn index
 >   | P Decl            -- declared symbol
 >   | D Defn Shunt      -- defined symbol, sort-shunted
->   | Ne t :$ t         -- application
->   deriving (Eq, Functor)
+>   | Ne :$ Tm          -- application
+>   deriving Eq
 > infixl  5  :$
 
 > data Sort
 >   = Set Integer       -- predcicative levels
 >   | Type              -- one superuniverse
 >   | Kind              -- the topsort
->   deriving Eq
+>   deriving (Eq, Ord)
 
 > data Can
 >   = Pi World          -- function type
@@ -92,7 +94,7 @@ There's always a file called Tm, defining the syntax of core terms.
 >   N n             -^ s  = N (n -^ s)
 >   t               -^ _  = t
 
-> instance Eval (Ne Tm) where
+> instance Eval Ne where
 >   D (_ ::= (Just v, _)) s  -! _  = shunt v s
 >   (f :$ a)                 -! g  = (f -! g) $$ (a -! g)
 >   n                        -! _  = N n
