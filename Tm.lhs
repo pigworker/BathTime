@@ -31,7 +31,7 @@ Abstract Syntax
 >   -- embedding stuck open terms
 >   | N Ne                              -- neutral
 >   deriving Eq
-> infixr  2  :.
+> infixr  2  :., :->
 > infixr  4  :&
 > infix   9  :@
 
@@ -130,6 +130,14 @@ cache environments. Correspondingly, if we ever test bodies other than
 `[] :- t` for equality, then something is amiss.
 
 
+Types
+-----
+
+Types should always be de-Bruijn-closed beta-delta evaluated terms.
+
+> type Ty = Tm -- evaluated
+
+
 Free Names
 ----------
 
@@ -137,14 +145,14 @@ These always carry full contextual information, which is shared.
 
 Declarations attach a type to a name.
 
-> data Decl = PName ::: Tm                      -- name and type
+> data Decl = (World, PName) ::: Ty
 >   deriving Eq
-> type PName = [(String, Int)]                  -- nice and splittable
+> type PName = [(String, Int)]            -- nice and splittable
 
 Global definitions attach a type to a name, and if they're finished,
 a value. Definitions may be invoked with a shunt to their set levels.
 
-> data Defn = DName ::= (Maybe Tm, Tm)          -- could be a hole
+> data Defn = (World, DName) ::= (Maybe Tm, Ty)   -- could be a hole
 >   deriving Eq
 > type DName = [(String, Int)]                  -- separate from PName
 
@@ -247,9 +255,12 @@ feed them neutral things to eliminate, but really do something if
 you feed them canonical values.
 
 > ($$) :: Tm -> Tm -> Tm
-> N n            $$ v         = N (n :$ v)
-> (_ :. K t)     $$ _         = t
-> (_ :. g :- b)  $$ v         = b -! (v : g)
+> N n       $$ v  = N (n :$ v)
+> (_ :. b)  $$ v  = b -$ v
+
+> (-$) :: Body -> Tm -> Tm
+> K t       -$ _  = t
+> (g :- t)  -$ v  = t -! (v : g)
 
 > car :: Tm -> Tm
 > car (N n)     = N (Car n)
@@ -278,13 +289,30 @@ indeed any closed neutral term).
 
 > instance Rename Body where -- the renaming might shift
 >    K t       // r         = K (t // r)
->    (h :- t)  // r@(j, n)  = map (// r) h :- (t // (length h + 1 + j, n))
+>    (h :- t)  // r@(j, n)  = (h // r) :- (t // (length h + 1 + j, n))
 
 > instance Rename Tm where -- all is structural
 >   ((w, x, a) :-> b)  // r  = (w, x, a // r) :-> b // r
+>   (c :@ ts)          // r  = c :@ (ts // r)
 >   (x :. b)           // r  = x :. (b // r)
 >   (a :& d)           // r  = (a // r) :& (d // r)
 >   C t                // r  = C (t // r)
 >   N n                // r  = N (n // r)
 >   t                  // _  = t
+
+> instance Rename t => Rename [t] where
+>   ts // r = map (// r) ts
+
+> instance Rename () where
+>   () // r = ()
+
+> instance (Rename s, Rename t) => Rename (s, t) where
+>   (s, t) // r = (s // r, t // r)
+
+A `Body` without a cached environment can be instantiated with a neutral,
+usually a `P`.
+
+> (-/) :: Body -> Ne -> Tm
+> K t        -/ _ = t
+> ([] :- t)  -/ n = t // (0, n)
 
