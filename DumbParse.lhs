@@ -50,6 +50,9 @@ DumbParse
 >   c : s | p c  -> [(c, s)]
 >   _            -> []
 
+> keywords :: [String]
+> keywords = ["Set", "Type", "Kind"]
+
 > txt :: String -> Parse ()
 > txt s = () <$ traverse (one.(==)) s
 
@@ -82,37 +85,92 @@ DumbParse
 > varLook i []        _                = empty
 
 > varp :: Parse Ne
-> varp = join $ varLook 0 <$> locsp <*> idNump
+> varp = do
+>   cs <- cans <$> globsp
+>   ls <- locsp
+>   yj@(x, _) <- idNump
+>   guard (not (elem x cs))
+>   guard (not (elem x keywords))
+>   varLook 0 ls yj
 
 > lamp :: Parse Tm
 > lamp = do
->   txt "\\"
->   spc
+>   txt "\\" ;  spc
 >   x <- identp
->   spc
->   txt "."
->   spc
->   t <- bindp x bigTm
+>   spc ; txt "." ; spc
+>   t <- bindp x bigTmp
 >   return (L x :. [] :- t)
 
-> bigTm :: Parse Tm
-> bigTm = lamp <|> N <$> bigNe <|> weeTm
+> canp :: Parse Tm
+> canp = do
+>   cs <- cans <$> globsp
+>   c <- identp
+>   guard (elem c cs)
+>   ts <- many (spc *> weeTmp)
+>   return (c :@ ts)
 
-> weeTm :: Parse Tm
-> weeTm 
->   =    id <$ txt "(" <* spc <*> bigTm <* spc <* txt ")"
->   <|>  N <$> weeNe
+> arrp :: Parse Tm
+> arrp = do
+>   txt "(" ; spc
+>   x <- identp
+>   spc ; txt ":" ; spc
+>   s <- bigTmp
+>   spc ; txt ")" ; spc
+>   w <- warrowp
+>   spc
+>   t <- bindp x bigTmp
+>   return ((w, L x, s) :-> [] :- t)
 
-> bigNe :: Parse Ne
-> bigNe = weeNe >>= moreNe
+> sortp :: Parse Sort
+> sortp
+>   =    Set <$ txt "Set" <*>
+>          (read <$ txt "^" <*> some (one isDigit) <|> pure 0)
+>   <|>  Type <$ txt "Type"
+>   <|>  Kind <$ txt "Kind"
 
-> moreNe :: Ne -> Parse Ne
-> moreNe n = (spc *>
->   (    (n :$) <$> weeTm
+> bigTmp :: Parse Tm
+> bigTmp
+>   =    lamp <|> arrp
+>   <|>  (S <$> sortp <|> canp <|> N <$> bigNep <|> weeNoNep) >>= moreTmp
+
+> weeNoNep :: Parse Tm
+> weeNoNep 
+>   =    id <$ txt "(" <* spc <*> bigTmp <* spc <* txt ")"
+>   <|>  Z <$ txt "(" <* spc <* txt ")"
+>   <|>  C <$ txt "[" <* spc <*> dataTmp <* spc <* txt "]"
+
+
+> weeTmp :: Parse Tm
+> weeTmp
+>   =    id <$> weeNoNep
+>   <|>  N <$> weeNep
+
+> moreTmp :: Tm -> Parse Tm
+> moreTmp s
+>   =    (s :&) <$ spc <* txt "," <* spc <*> bigTmp <|> pure s
+>   <|>  vaca s <$ spc <*> warrowp <* spc <*> bigTmp
+>   where
+>     vaca s w t = (w, L "_", s) :-> K t
+
+> warrowp :: Parse World
+> warrowp = Sta <$ txt "=>" <|> Dyn <$ txt "->"
+
+> dataTmp :: Parse Tm
+> dataTmp 
+>   =   (:&) <$> weeTmp <* spc <*> dataTmp
+>   <|> id <$ txt "|" <* spc <*> bigTmp
+>   <|> pure Z
+
+> bigNep :: Parse Ne
+> bigNep = weeNep >>= moreNep
+
+> moreNep :: Ne -> Parse Ne
+> moreNep n = (spc *>
+>   (    (n :$) <$> weeTmp
 >   <|>  Car n <$ txt "!"
 >   <|>  Cdr n <$ txt "-"
->   ) >>= moreNe) <|> pure n
+>   ) >>= moreNep) <|> pure n
 
-> weeNe :: Parse Ne
-> weeNe = varp
+> weeNep :: Parse Ne
+> weeNep = varp
 

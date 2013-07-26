@@ -12,6 +12,7 @@ UglyPrint
 > bigTm noms ((w, L x, s) :-> [] :- t) =
 >   "(" ++ x ++ " : " ++ bigTm noms s ++ ")" ++ worldArrow w ++
 >   bigTm (x : noms) t
+> bigTm noms (c :@ ts) = c ++ (ts >>= \ t -> " " ++ weeTm noms t)
 > bigTm noms (L x :. K t) = "\\ _ . " ++ bigTm noms t
 > bigTm noms (L x :. [] :- t) =
 >   "\\ " ++ x ++ " . " ++ bigTm (x : noms) t
@@ -43,7 +44,7 @@ UglyPrint
 >   (s, i) -> s ++ "^" ++ show i
 >   where
 >     fetch 0 (x : _)   = (x, 0)
->     fetch i (x : xs)  = case fetch i xs of
+>     fetch i (x : xs)  = case fetch (i - 1) xs of
 >       (y, j)  | x == y     -> (y, j + 1)
 >               | otherwise  -> (y, j)
 > weeNe noms (P ((_, p) ::: _)) = show p
