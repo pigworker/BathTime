@@ -1,7 +1,7 @@
 Tm
 ==
 
-> {-# LANGUAGE TypeSynonymInstances #-}
+> {-# LANGUAGE TypeSynonymInstances, MultiParamTypeClasses #-}
 
 (So far, -XKitchenSink is to be resisted.)
 
@@ -21,10 +21,10 @@ Abstract Syntax
 > data Tm
 >   -- making types
 >   = S Sort                            -- type of types
->   | (World, Namer, Tm) :-> Body       -- function types
+>   | (World, Namer, Tm) :-> Body Tm    -- function types
 >   | Can :@ [Tm]                       -- other canonical type
 >   -- making values
->   | Namer :. Body                     -- abstraction
+>   | Namer :. Body Tm                  -- abstraction
 >   | Tm :& Tm                          -- pairing
 >   | Z                                 -- zero
 >   | C Tm                              -- constructor for isorecursion
@@ -114,11 +114,11 @@ equality testing.
 The representation of bodies binding a variable has a handy special case
 for vacuous binding.
 
-> data Body
->   = K Tm              -- constant result for vacuous binding
->   | [Tm] :- Tm        -- some lets and a lambda body
+> data Body t
+>   = K t               -- constant result for vacuous binding
+>   | [Tm] :- t         -- some lets and a lambda body
 > infixr  2  :-
-> instance Eq Body where ([] :- t1) == ([] :- t2) = t1 == t2
+> instance Eq t => Eq (Body t) where ([] :- t1) == ([] :- t2) = t1 == t2
 
 Meanwhile, the `g :- t` takes an environment `g` and a body `t` where
 `t` has `length g + 1` more de Bruijn indices available, so that 0 refers
@@ -180,43 +180,59 @@ They should be a monoid...
 We shall ensure that typing respects shunting, so definitions (which
 are closed and global) can always be shunted.
 
+> class Shuntable t where
+>   (-^) :: t -> Shunt -> t
 
-Evaluation
-----------
+> shunt :: Shuntable t => t -> Shunt -> t
+> shunt t s | s == mempty = t
+> shunt t s = t -^ s
 
-Things you can evaluate are things which give you a term if you give
-them an environment for their dangling de Bruijn indices. Locally, an
-environment is a list with the value for `V 0` at its head.  Anything
-you can evaluate must also be amenable to a shunt of its set levels.
-
-> class Eval t where
->   (-!) :: t -> [Tm] -> Tm
->   eval :: t -> Tm
->   eval = (-! [])
->   (-^), shunt :: t -> Shunt -> t
->   shunt t s | s == mempty = t
->   shunt t s = t -^ s
-
-Of course, we can evaluate terms in a tediously structural manner.
-
-> instance Eval Tm where -- nothing exciting happens
->
->   (c :@ ts)          -! g  = c :@ map (-! g) ts
->   ((w, x, a) :-> b)  -! g  = (w, x, a -! g) :-> evalBody b g
->   (x :. b)           -! g  = x :. evalBody b g
->   (a :& d)           -! g  = (a -! g) :& (d -! g)
->   C t                -! g  = C (t -! g)
->   N n                -! g  = n -! g
->   t                  -! _  = t
->
+> instance Shuntable Tm where
 >   S (Set i)          -^ s  = S (Set (i +^ s))
->   ((w, x, a) :-> b)  -^ s  = (w, x, a -^ s) :-> shuntBody b s
+>   ((w, x, a) :-> b)  -^ s  = (w, x, a -^ s) :-> (b -^ s)
 >   (c :@ ts)          -^ s  = c :@ map (-^ s) ts
->   (x :. b)           -^ s  = x :. shuntBody b s
+>   (x :. b)           -^ s  = x :. (b -^ s)
 >   (a :& d)           -^ s  = (a -^ s) :& (d -^ s)
 >   C t                -^ s  = C (t -^ s)
 >   N n                -^ s  = N (n -^ s)
 >   t                  -^ _  = t
+
+> instance Shuntable t => Shuntable (Body t) where
+>   K t       -^  s  = K (t -^ s)
+>   (h :- t)  -^  s  = map (-^ s) h :- t
+
+> instance Shuntable Ne where
+>   D d s'     -^ s  = D d (mappend s' s)
+>   (f :$ a)   -^ s  = (f -^ s) :$ (a -^ s)
+>   Car n      -^ s  = Car (n -^ s)
+>   Cdr n      -^ s  = Cdr (n -^ s)
+>   n          -^ s  = n
+
+
+Evaluation
+----------
+
+Things you can evaluate are things which give you the suitable notion
+of value if you give them an environment for their dangling de Bruijn
+indices. Locally, an environment is a list with the value for `V 0` at
+its head.  Anything you can evaluate must also be amenable to a shunt
+of its set levels.
+
+> class Eval t v where
+>   (-!) :: t -> [Tm] -> v
+>   eval :: t -> v
+>   eval = (-! [])
+
+Of course, we can evaluate terms in a tediously structural manner.
+
+> instance Eval Tm Tm where -- nothing exciting happens
+>   (c :@ ts)          -! g  = c :@ map (-! g) ts
+>   ((w, x, a) :-> b)  -! g  = (w, x, a -! g) :-> (b -! g)
+>   (x :. b)           -! g  = x :. (b -! g)
+>   (a :& d)           -! g  = (a -! g) :& (d -! g)
+>   C t                -! g  = C (t -! g)
+>   N n                -! g  = n -! g
+>   t                  -! _  = t
 
 Here's where the environment gets stuck. In the h :- t case, h scopes
 over g, so we evaluate it to get a closed environment for the inner
@@ -224,32 +240,21 @@ indices, then we append g, which gives closed values for the outer
 environment. (This could be optimized if we insisted that every term in `h`
 must be closed.)
 
-> evalBody :: Body -> [Tm] -> Body
-> evalBody (K t)     g  = K (t -! g)
-> evalBody (h :- t)  g  = (map (-! g) h ++ g) :- t
-
-> shuntBody :: Body -> Shunt -> Body
-> shuntBody (K t)     s  = K (t -^ s)
-> shuntBody (h :- t)  s  = map (-^ s) h :- t
+> instance Eval t t => Eval (Body t) (Body t) where
+>   K t       -! g  = K (t -! g)
+>   (h :- t)  -! g  = (map (-! g) h ++ g) :- t
 
 It's the neutral terms which unstick when you give values to variables,
 so here, variables get looked up and definitions expanded, getting us
 to beta-delta-weak-head-normal form. Elimination forms map to their...
 
-> instance Eval Ne where -- all the action is
->
+> instance Eval Ne Tm where -- all the action is
 >   V i                      -! g  = g !! i
 >   D (_ ::= (Just v, _)) s  -! _  = shunt v s
 >   (f :$ a)                 -! g  = (f -! g) $$ (a -! g)
 >   Car p                    -! g  = car (p -! g)
 >   Cdr p                    -! g  = cdr (p -! g)
 >   n                        -! _  = N n
->
->   D d s'     -^ s  = D d (mappend s' s)
->   (f :$ a)   -^ s  = (f -^ s) :$ (a -^ s)
->   Car n      -^ s  = Car (n -^ s)
->   Cdr n      -^ s  = Cdr (n -^ s)
->   n          -^ s  = n
 
 ...excitingly computational counterparts, which get stuck if you
 feed them neutral things to eliminate, but really do something if
@@ -259,7 +264,7 @@ you feed them canonical values.
 > N n       $$ v  = N (n :$ v)
 > (_ :. b)  $$ v  = b -$ v
 
-> (-$) :: Body -> Tm -> Tm
+> (-$) :: Eval v v => Body v -> Tm -> v
 > K t       -$ _  = t
 > (g :- t)  -$ v  = t -! (v : g)
 
@@ -288,7 +293,7 @@ indeed any closed neutral term).
 >   Cdr n     // r                = Cdr (n // r)
 >   n         // _                = n
 
-> instance Rename Body where -- the renaming might shift
+> instance Rename t => Rename (Body t) where -- the renaming might shift
 >    K t       // r         = K (t // r)
 >    (h :- t)  // r@(j, n)  = (h // r) :- (t // (length h + 1 + j, n))
 
@@ -313,7 +318,7 @@ indeed any closed neutral term).
 A `Body` without a cached environment can be instantiated with a neutral,
 usually a `P`.
 
-> (-/) :: Body -> Ne -> Tm
+> (-/) :: Body Tm -> Ne -> Tm
 > K t        -/ _ = t
 > ([] :- t)  -/ n = t // (0, n)
 

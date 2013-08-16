@@ -4,6 +4,7 @@ UglyPrint
 > module UglyPrint where
 
 > import Tm
+> import Spec
 
 > bigTm :: [String] -> Tm -> String
 > bigTm noms (N n)  = bigNe noms n
@@ -65,3 +66,15 @@ UglyPrint
 >   show (Set i)  = "Set^" ++ show i
 >   show Type     = "Type"
 >   show Kind     = "Kind"
+
+> tele :: [String] -> Tele -> String
+> tele noms TNil = ""
+> tele noms (TConsIn (L x, t) ts) =
+>     "(" ++ x ++ " : " ++ bigTm noms t ++ ")" ++ mo ts where
+>   mo (K ts) = tele noms ts
+>   mo ([] :- ts) = tele (x : noms) ts
+
+> spec :: Spec -> String
+> spec (CanSpec i c ts) = show (Set i) ++ " :> " ++ c ++ case ts of
+>   TNil -> ""
+>   _ -> " " ++ tele [] ts

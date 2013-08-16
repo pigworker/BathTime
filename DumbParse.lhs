@@ -12,6 +12,7 @@ DumbParse
 > import Data.Traversable
 
 > import Tm
+> import Spec
 
 > data Globs = Globs
 >   {  cans :: [String]
@@ -125,10 +126,12 @@ DumbParse
 >   t <- bindp x bigTmp
 >   return ((w, L x, s) :-> [] :- t)
 
+> setlp :: Parse Integer
+> setlp = read <$ txt "^" <*> some (one isDigit) <|> pure 0
+
 > sortp :: Parse Sort
 > sortp
->   =    Set <$ txt "Set" <*>
->          (read <$ txt "^" <*> some (one isDigit) <|> pure 0)
+>   =    Set <$ txt "Set" <*> setlp
 >   <|>  Type <$ txt "Type"
 >   <|>  Kind <$ txt "Kind"
 
@@ -182,3 +185,18 @@ DumbParse
 > weeNep :: Parse Ne
 > weeNep = varp
 
+> specp :: Parse Spec
+> specp =
+>   CanSpec <$ txt "Set" <*> setlp <* spc <* txt ":>" <* spc <*> identp
+>     <*> telep
+
+> telep :: Parse Tele
+> telep = cp <|> pure TNil where
+>   cp = do
+>     spc ; txt "(" ; spc
+>     x <- identp
+>     spc ; txt ":" ; spc
+>     s <- bigTmp
+>     spc ; txt ")"
+>     t <- bindp x telep
+>     return (TConsIn (L x, s) ([] :- t))

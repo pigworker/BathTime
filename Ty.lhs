@@ -8,6 +8,7 @@ Here's how to check types.
 > import Control.Monad
 
 > import Tm
+> import Spec
 
 
 Choosing Names
@@ -22,7 +23,12 @@ Choosing Names
 A Checking Monad
 ----------------
 
-> newtype Chk x = Chk {chk :: Root -> World -> Maybe x}
+> newtype Chk x = Chk {chk :: TCInfo -> World -> Maybe x}
+
+> data TCInfo = TCInfo
+>   {  rooty  :: Root
+>   ,  canty  :: [(Can, (Integer, Tele))]
+>   }
 
 > instance Monad Chk where
 >   return x = Chk $ \ r w -> Just x
@@ -37,10 +43,10 @@ A Checking Monad
 We can bind a name for a problem. Beware of the scope of the solution.
 
 > (!-) ::  (World, Namer, Tm) -> (Ne -> Chk t) -> Chk t
-> (w, x, a) !- j = Chk $ \ r w -> do
->   let (x', r') = name r x
+> (w, x, a) !- j = Chk $ \ info w -> do
+>   let (x', r') = name (rooty info) x
 >   let n = P ((w, x') ::: a)
->   t' <- chk (j n) r' w
+>   t' <- chk (j n) (info {rooty = r'}) w
 >   return t'
 
 We can check that we can be accessed from a given world.
@@ -56,16 +62,24 @@ We can move to an appropriate new world to check an argument
 We can shift to a root with a zero counter
 
 > root :: String -> Chk t -> Chk t
-> root x c = Chk $ \ (sis, j) w -> chk c (sis ++ [(x, j)], 0) w
+> root x c = Chk $ \ info w ->
+>   let  (sis, j) = rooty info
+>   in   chk c (info {rooty = (sis ++ [(x, j)], 0)}) w
 
 We can turn a name into an index if it matches the root.
 
 > inx :: Decl -> Chk Ne
-> inx d@((_, x) ::: _) = Chk $ \ (y, l) _ ->
->   let chomp [] [(_, k)] = V (l - k - 1)
+> inx d@((_, x) ::: _) = Chk $ \ info _ ->
+>   let (y, l) = rooty info
+>       chomp [] [(_, k)] = V (l - k - 1)
 >       chomp (x : xs) (y : ys) | x == y = chomp xs ys
 >       chomp _ _ = P d
 >   in  return (chomp x y)
+
+We can check for being canonical.
+
+> canChk :: Can -> Chk (Integer, Tele)
+> canChk c = Chk $ \ info w -> lookup c (canty info)
 
 
 Typechecking Terms
@@ -101,6 +115,18 @@ using `Kind` as a subcomponent of a type.
 >     x@(_, _, a) :-> b -> do
 >       tyChk (S i) a
 >       x !- \ x -> tyChk (S i) (b -/ x)
+
+For the canonical sets, we must look them up, to find their minimum level
+and their argument telescope. We must be forming a set at at least the
+minimum level, and we shunt the telescope up by the difference. That is,
+every level above the minimum is closed under the construction.
+
+>     c :@ ss -> do
+>       (j, ts) <- canChk c
+>       case i of
+>         Set i | i >= j -> teleChk (shunt ts (i - j)) ss
+>         _ -> mzero
+
 >     _ -> mzero
 
 To check a function, go under the binder.
@@ -217,3 +243,13 @@ Note that, in the above `t -$ a`, it has to be `a`, which has the right
 scope, rather than `a'` which is *not* a value and may contain dangling
 de Bruijn indices.
 
+
+Checking a List Fits a Telescope
+--------------------------------
+
+> teleChk :: Tele -> [Tm] -> Chk ()
+> teleChk TNil                []        = return ()
+> teleChk (TConsIn (x, t) b)  (s : ss)  = do
+>   tyChk t s
+>   teleChk (b -$ eval s) ss
+> teleChk _ _ = mzero
