@@ -8,13 +8,13 @@ UglyPrint
 > bigTm :: [String] -> Tm -> String
 > bigTm noms (N n)  = bigNe noms n
 > bigTm noms ((w, x, s) :-> K t) =
->   blah noms s ++ worldArrow w ++ bigTm noms t
+>   blah noms s ++ " -" ++ worldAnno w ++ "> " ++ bigTm noms t
 >   where blah = case t of
 >           N _  -> bigTm
 >           C _  -> bigTm
 >           _    -> weeTm
 > bigTm noms ((w, L x, s) :-> [] :- t) =
->   "(" ++ x ++ " : " ++ bigTm noms s ++ ")" ++ worldArrow w ++
+>   "(" ++ x ++ " :" ++ worldAnno w ++ " " ++ bigTm noms s ++ ") -> " ++
 >   bigTm (x : noms) t
 > bigTm noms (c :@ ts) = c ++ (ts >>= \ t -> " " ++ weeTm noms t)
 > bigTm noms (L x :. K t) = "\\ _ . " ++ bigTm noms t
@@ -56,9 +56,9 @@ UglyPrint
 > weeNe noms (D ((_, d) ::= _) s) = show d ++ "^" ++ show s
 > weeNe noms t = "(" ++ bigNe noms t ++ ")"
 
-> worldArrow :: World -> String
-> worldArrow Dyn = " -> "
-> worldArrow Sta = " => "
+> worldAnno :: World -> String
+> worldAnno Dyn = ""
+> worldAnno Sta = "*"
 
 > instance Show Sort where
 >   show (Set 0)  = "Set"

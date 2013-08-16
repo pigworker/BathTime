@@ -79,6 +79,4 @@ constructed piecewise in a hierarchy of worlds, then it can be
 constructed entirely in their limit". Even with two worlds, we'll see
 a difference between product-like dynamic quantification `(x : S) ->
 T` and intersection-like static quantification `(x :* S) -> T`. I'm
-hoping for a major outbreak of sanity. *Note to self:* current parser
-uses `(x : S) => T` for the latter, but the mark should really be on
-the colon &mdash; fix this.
+hoping for a major outbreak of sanity.

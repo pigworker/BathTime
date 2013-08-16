@@ -117,11 +117,11 @@ DumbParse
 > arrp = do
 >   txt "(" ; spc
 >   x <- identp
->   spc ; txt ":" ; spc
->   s <- bigTmp
->   spc ; txt ")" ; spc
->   w <- warrowp
+>   spc ; txt ":"
+>   w <- worldp
 >   spc
+>   s <- bigTmp
+>   spc ; txt ")" ; spc ; txt "->" ; spc
 >   t <- bindp x bigTmp
 >   return ((w, L x, s) :-> [] :- t)
 
@@ -157,8 +157,11 @@ DumbParse
 >   where
 >     vaca s w t = (w, L "_", s) :-> K t
 
+> worldp :: Parse World
+> worldp = Sta <$ txt "*" <|> pure Dyn
+
 > warrowp :: Parse World
-> warrowp = Sta <$ txt "=>" <|> Dyn <$ txt "->"
+> warrowp = id <$ txt "-" <*> worldp <* txt ">"
 
 > dataTmp :: Parse Tm
 > dataTmp 
