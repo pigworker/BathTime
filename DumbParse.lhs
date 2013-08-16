@@ -65,6 +65,10 @@ DumbParse
 > globsp :: Parse Globs
 > globsp = Parse $ \ g l s -> [(g, s)]
 
+> notp :: Parse x -> Parse ()
+> notp (Parse f) = Parse $ \ g l s ->
+>   if null (f g l s) then [((), s)] else []
+
 > spc :: Parse ()
 > spc = () <$ many (one isSpace)
 
@@ -147,8 +151,9 @@ DumbParse
 
 > moreTmp :: Tm -> Parse Tm
 > moreTmp s
->   =    (s :&) <$ spc <* txt "," <* spc <*> bigTmp <|> pure s
+>   =    (s :&) <$ spc <* txt "," <* spc <*> bigTmp
 >   <|>  vaca s <$ spc <*> warrowp <* spc <*> bigTmp
+>   <|>  s <$ notp (spc *> warrowp)
 >   where
 >     vaca s w t = (w, L "_", s) :-> K t
 
@@ -158,7 +163,7 @@ DumbParse
 > dataTmp :: Parse Tm
 > dataTmp 
 >   =   (:&) <$> weeTmp <* spc <*> dataTmp
->   <|> id <$ txt "|" <* spc <*> bigTmp
+>   <|> id <$ txt "," <* spc <*> bigTmp
 >   <|> pure Z
 
 > bigNep :: Parse Ne

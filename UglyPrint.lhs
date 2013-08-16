@@ -8,7 +8,11 @@ UglyPrint
 > bigTm :: [String] -> Tm -> String
 > bigTm noms (N n)  = bigNe noms n
 > bigTm noms ((w, x, s) :-> K t) =
->   weeTm noms s ++ worldArrow w ++ bigTm noms t
+>   blah noms s ++ worldArrow w ++ bigTm noms t
+>   where blah = case t of
+>           N _  -> bigTm
+>           C _  -> bigTm
+>           _    -> weeTm
 > bigTm noms ((w, L x, s) :-> [] :- t) =
 >   "(" ++ x ++ " : " ++ bigTm noms s ++ ")" ++ worldArrow w ++
 >   bigTm (x : noms) t
@@ -30,7 +34,7 @@ UglyPrint
 > dataTms noms Z         = ""
 > dataTms noms (a :& Z)  = weeTm noms a
 > dataTms noms (a :& d)  = weeTm noms a ++ " " ++ dataTms noms d
-> dataTms noms t         = "| " ++ bigTm noms t
+> dataTms noms t         = ", " ++ bigTm noms t
 
 > bigNe :: [String] -> Ne -> String
 > bigNe noms (f :$ a) = bigNe noms f ++ " " ++ weeTm noms a
