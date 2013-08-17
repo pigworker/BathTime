@@ -80,3 +80,62 @@ constructed entirely in their limit". Even with two worlds, we'll see
 a difference between product-like dynamic quantification `(x : S) ->
 T` and intersection-like static quantification `(x :* S) -> T`. I'm
 hoping for a major outbreak of sanity.
+
+
+Some Religion and its Syntax
+----------------------------
+
+At least as far as run time is concerned, I'm avoiding new generative forms
+of data. We have functions (represented as closures), and we have first order
+data in three term forms
+
+    ()                           -- nil
+    term , term                  -- cons
+    [list]                       -- isorecursive packing
+
+where `,` associates rightward, and `list` syntax just sugars the same
+notion of term, allowing
+
+    , term                       -- meaning  term
+    term list                    -- meaning  term , list
+                                 -- meaning  ()
+
+For example, `[a b c]` is short for `[, a, b, c, ()]`.
+
+It should be possible to erase isorecursive packing at closed-run time, as
+its purpose is only to show the typechecker where to unfold fixpoints. Otherwise,
+data are from LISP. Of course you can't infer types for this stuff. The point is
+to project types onto it. In time, we might play similar games with data yet
+more raw. Fritz Henglein likes to observe that for some CS folk "it's all bits"
+and for others "it's all structure". Both are right.
+
+By the way, I allow `#n` for the list of `n` copies of `()`. Desugaring, we get
+
+    #0 = ()
+    #1 = () , ()
+    #2 = () , () , ()
+
+and so on. Rather than a unary encoding, I could choose one of the
+many amusing isos between the natural numbers and the binary trees,
+but I won't just now. It is my habit to display the head of an iso-packed
+list in this form if possible, as that will often correspond to a choice
+of constructor. So, a node of inductive data will tend to look like
+
+    [#n blah blah blah , proof]
+
+where `proof` will often be `()` and hence suppressed.
+
+(There are lots of choices in this design space. Here, I'm using nil and cons
+to capture both *tupling* and *distinction*. We might well find cause to separate
+these two notions, especially as tupling can be lazy but distinction must be
+strict. It may also be possible to make iso-packing a smart constructor, packing
+only neutrals and other packings, but evaporating when given concrete contents.)
+
+
+Specifying a Theory
+-------------------
+
+I'm trying to build some tools which enable me to write down the rules of
+the theory in a compact and readable form, then generate all the equipment.
+There'll be some interpretive overhead, but I'll take the hit to be lighter
+of foot.

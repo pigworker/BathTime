@@ -143,9 +143,13 @@ DumbParse
 > weeNoNep :: Parse Tm
 > weeNoNep 
 >   =    id <$ txt "(" <* spc <*> bigTmp <* spc <* txt ")"
+>   <|>  nat <$ txt "#" <*> (read <$> some (one isDigit))
 >   <|>  Z <$ txt "(" <* spc <* txt ")"
 >   <|>  C <$ txt "[" <* spc <*> dataTmp <* spc <* txt "]"
-
+>   where
+>     nat :: Integer -> Tm
+>     nat 0 = Z
+>     nat n = Z :& nat (n - 1)
 
 > weeTmp :: Parse Tm
 > weeTmp

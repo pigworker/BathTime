@@ -3,6 +3,8 @@ UglyPrint
 
 > module UglyPrint where
 
+> import Control.Applicative
+
 > import Tm
 > import Spec
 
@@ -21,21 +23,29 @@ UglyPrint
 > bigTm noms (L x :. K t) = "\\ _ . " ++ bigTm noms t
 > bigTm noms (L x :. [] :- t) =
 >   "\\ " ++ x ++ " . " ++ bigTm (x : noms) t
-> bigTm noms (s :& t) = weeTm noms s ++ " / " ++ bigTm noms t
+> bigTm noms (s :& t) = weeTm noms s ++ " , " ++ bigTm noms t
 > bigTm noms t      = weeTm noms t
 
 > weeTm :: [String] -> Tm -> String
 > weeTm noms (N n)  = weeNe noms n
 > weeTm noms (S i)  = show i
-> weeTm noms Z      = "0"
+> weeTm noms Z      = "()"
 > weeTm noms (C t)  = "[" ++ dataTms noms t ++ "]"
 > weeTm noms t      = "(" ++ bigTm noms t ++ ")"
 
+> hashNat :: Tm -> Maybe Integer
+> hashNat Z = Just 0
+> hashNat (Z :& n) = (1 +) <$> hashNat n
+> hashNat _ = Nothing
+
 > dataTms :: [String] -> Tm -> String
 > dataTms noms Z         = ""
-> dataTms noms (a :& Z)  = weeTm noms a
-> dataTms noms (a :& d)  = weeTm noms a ++ " " ++ dataTms noms d
-> dataTms noms t         = ", " ++ bigTm noms t
+> dataTms noms (a :& d)  =
+>   maybe (weeTm noms a) (("#" ++) . show) (hashNat a) ++ more d where
+>   more Z = ""
+>   more (a :& d) = " " ++ weeTm noms a ++ more d
+>   more t = " , " ++ bigTm noms t
+> dataTms noms t         = " , " ++ bigTm noms t
 
 > bigNe :: [String] -> Ne -> String
 > bigNe noms (f :$ a) = bigNe noms f ++ " " ++ weeTm noms a
